@@ -1,7 +1,6 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 import 'package:bracket_view/src/bracket_theme.dart';
 import 'package:bracket_view/src/models/bracket_match.dart';
@@ -61,7 +60,6 @@ class _BracketViewState extends State<BracketView> {
   double _scrollOffset = 0;
   int _snappedIndex = 0;
   int _activeIndex = 0;
-  bool _isSnapping = false;
 
   @override
   void initState() {
@@ -83,15 +81,24 @@ class _BracketViewState extends State<BracketView> {
 
   double _viewportWidth = 0;
 
-  /// Handles scroll offset changes. Unfreezes columns when scrolling left.
+  /// Handles scroll offset changes. Tracks current scroll position and
+  /// updates snappedIndex when scrolling backward (so previous rounds
+  /// transition back to bracket-aligned preview).
   void _onScrollUpdate() {
     final newOffset = _hScrollController.offset;
     if (newOffset < _scrollOffset) {
-      final unit = widget.theme.columnWidth + widget.theme.columnGap;
-      final currentIdx = (newOffset / unit).floor().clamp(
-        0,
-        widget.rounds.length - 1,
-      );
+      // Scrolling backward — find the closest snap target and possibly
+      // lower _snappedIndex so previous rounds re-expand.
+      int currentIdx = 0;
+      double minDist = double.infinity;
+      for (int i = 0; i < widget.rounds.length; i++) {
+        final snapTarget = _snapOffsetForIndex(i);
+        final dist = (newOffset - snapTarget).abs();
+        if (dist < minDist) {
+          minDist = dist;
+          currentIdx = i;
+        }
+      }
       if (currentIdx < _snappedIndex) {
         _snappedIndex = currentIdx;
       }
@@ -101,14 +108,37 @@ class _BracketViewState extends State<BracketView> {
     });
   }
 
+  /// Calculates the snap scroll offset for a given round index.
+  /// Account for the SingleChildScrollView's horizontal padding (16px each side).
+  double _snapOffsetForIndex(int index) {
+    // For the first round, snap to offset 0 so the leading padding stays
+    // visible on the left edge.
+    if (index == 0) {
+      if (!_hScrollController.hasClients) return 0.0;
+      return 0.0.clamp(0.0, _hScrollController.position.maxScrollExtent);
+    }
+
+    final unit = widget.theme.columnWidth + widget.theme.columnGap;
+    final prevPeek = widget.theme.previousRoundPeek;
+    const horizontalPadding = 16.0; // matches SingleChildScrollView padding
+
+    // Position of column `index` within the scrollable content (after padding):
+    //   columnStartInContent = horizontalPadding + index * unit
+    // To show the column with prevPeek visible space on the left,
+    // scroll offset should be:
+    //   scrollOffset = columnStartInContent - prevPeek
+    final target = horizontalPadding + index * unit - prevPeek;
+
+    if (!_hScrollController.hasClients) {
+      return target.clamp(0.0, double.infinity);
+    }
+    return target.clamp(0.0, _hScrollController.position.maxScrollExtent);
+  }
+
   /// Scrolls the horizontal view to the given round index.
   void _scrollToIndex(int index, {required bool animated}) {
     if (!_hScrollController.hasClients) return;
-    final unit = widget.theme.columnWidth + widget.theme.columnGap;
-    final target = (index * unit).clamp(
-      0.0,
-      _hScrollController.position.maxScrollExtent,
-    );
+    final target = _snapOffsetForIndex(index);
     if (animated) {
       _hScrollController.animateTo(
         target,
@@ -120,34 +150,35 @@ class _BracketViewState extends State<BracketView> {
     }
   }
 
-  /// Snaps to the nearest round column when user releases scroll.
+  /// Called after physics settles. Updates active/snapped index based on
+  /// the final scroll position. No re-animation needed since physics
+  /// already snapped to the correct target.
   void _onScrollEnd() {
-    if (!_hScrollController.hasClients || _isSnapping) return;
-    final unit = widget.theme.columnWidth + widget.theme.columnGap;
+    if (!_hScrollController.hasClients) return;
     final offset = _hScrollController.offset;
-    final idx = (offset / unit).round().clamp(0, widget.rounds.length - 1);
+
+    // Find the closest snap point to determine which round is active.
+    int idx = 0;
+    double minDist = double.infinity;
+    for (int i = 0; i < widget.rounds.length; i++) {
+      final snapTarget = _snapOffsetForIndex(i);
+      final dist = (offset - snapTarget).abs();
+      if (dist < minDist) {
+        minDist = dist;
+        idx = i;
+      }
+    }
 
     if (idx != _activeIndex) {
-      _activeIndex = idx;
+      setState(() {
+        _activeIndex = idx;
+      });
       widget.onRoundChanged?.call(idx);
     }
     if (idx > _snappedIndex) {
-      _snappedIndex = idx;
-    }
-
-    final snapOffset = (idx * unit).clamp(
-      0.0,
-      _hScrollController.position.maxScrollExtent,
-    );
-    if ((snapOffset - offset).abs() > 1.0) {
-      _isSnapping = true;
-      _hScrollController
-          .animateTo(
-            snapOffset,
-            duration: widget.theme.snapDuration,
-            curve: widget.theme.snapCurve,
-          )
-          .then((_) => _isSnapping = false);
+      setState(() {
+        _snappedIndex = idx;
+      });
     }
   }
 
@@ -212,7 +243,7 @@ class _BracketViewState extends State<BracketView> {
         child: _BracketBody(
           rounds: widget.rounds,
           scrollOffset: 0,
-          snappedIndex: 0,
+          snappedIndex: -1,
           theme: widget.theme,
           onMatchTap: widget.onMatchTap,
           matchCardBuilder: widget.matchCardBuilder,
@@ -226,16 +257,17 @@ class _BracketViewState extends State<BracketView> {
 
   /// Builds the scrollable bracket with snap and animation for small screens.
   Widget _buildSmallScreenBracket() {
+    // Build the list of snap targets for all rounds.
+    final snapTargets = [
+      for (int i = 0; i < widget.rounds.length; i++) _snapOffsetForIndex(i),
+    ];
+
     return ScrollConfiguration(
       behavior: const _WebDragScrollBehavior(),
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
+          // After natural physics settles, sync our active/snapped index.
           if (notification is ScrollEndNotification &&
-              notification.metrics.axis == Axis.horizontal) {
-            _onScrollEnd();
-          }
-          if (notification is UserScrollNotification &&
-              notification.direction == ScrollDirection.idle &&
               notification.metrics.axis == Axis.horizontal) {
             _onScrollEnd();
           }
@@ -246,7 +278,7 @@ class _BracketViewState extends State<BracketView> {
           child: SingleChildScrollView(
             controller: _hScrollController,
             scrollDirection: Axis.horizontal,
-            physics: const ClampingScrollPhysics(),
+            physics: _BracketSnapPhysics(snapTargets: snapTargets),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: _BracketBody(
               rounds: widget.rounds,
@@ -276,6 +308,111 @@ class _WebDragScrollBehavior extends MaterialScrollBehavior {
     PointerDeviceKind.mouse,
     PointerDeviceKind.trackpad,
   };
+}
+
+/// Custom physics that snaps to one of the provided target offsets on
+/// fling/drag end. Uses velocity direction to bias the snap target so any
+/// meaningful drag commits to a target in that direction (like PageView).
+class _BracketSnapPhysics extends ScrollPhysics {
+  const _BracketSnapPhysics({required this.snapTargets, super.parent});
+
+  /// Sorted list of snap offsets (ascending).
+  final List<double> snapTargets;
+
+  @override
+  _BracketSnapPhysics applyTo(ScrollPhysics? ancestor) {
+    return _BracketSnapPhysics(
+      snapTargets: snapTargets,
+      parent: buildParent(ancestor),
+    );
+  }
+
+  /// Index of the snap target closest to [offset].
+  int _nearestIndex(double offset) {
+    if (snapTargets.isEmpty) return 0;
+    int idx = 0;
+    double minDist = (offset - snapTargets[0]).abs();
+    for (int i = 1; i < snapTargets.length; i++) {
+      final d = (offset - snapTargets[i]).abs();
+      if (d < minDist) {
+        minDist = d;
+        idx = i;
+      }
+    }
+    return idx;
+  }
+
+  /// Decides which snap target index to settle on based on current pixels
+  /// and release velocity.
+  ///
+  /// Behavior (mirrors `PageScrollPhysics`):
+  /// - Find the snap target closest to current position.
+  /// - If velocity is rightward and current pixels are at/past that target,
+  ///   commit to the next target.
+  /// - If velocity is leftward and current pixels are at/before that target,
+  ///   commit to the previous target.
+  /// - Otherwise stay at the nearest target.
+  int _targetIndex(
+    ScrollMetrics position,
+    double velocity,
+    Tolerance tolerance,
+  ) {
+    final pixels = position.pixels;
+    final nearestIdx = _nearestIndex(pixels);
+
+    // No meaningful velocity → snap to nearest.
+    if (velocity.abs() < tolerance.velocity) {
+      return nearestIdx;
+    }
+
+    final nearestTarget = snapTargets[nearestIdx];
+    if (velocity > 0) {
+      // Fling right: if already past nearest target, jump to next.
+      if (pixels >= nearestTarget) {
+        return (nearestIdx + 1).clamp(0, snapTargets.length - 1);
+      }
+      return nearestIdx;
+    } else {
+      // Fling left: if still at or before nearest target, jump to previous.
+      if (pixels <= nearestTarget) {
+        return (nearestIdx - 1).clamp(0, snapTargets.length - 1);
+      }
+      return nearestIdx;
+    }
+  }
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    // Out of bounds — defer to parent for bounce/clamp behavior.
+    if ((velocity <= 0.0 && position.pixels <= position.minScrollExtent) ||
+        (velocity >= 0.0 && position.pixels >= position.maxScrollExtent)) {
+      return super.createBallisticSimulation(position, velocity);
+    }
+
+    final tolerance = toleranceFor(position);
+    final targetIdx = _targetIndex(position, velocity, tolerance);
+    final target = snapTargets[targetIdx];
+
+    // Already at target with no velocity.
+    if ((target - position.pixels).abs() < tolerance.distance &&
+        velocity.abs() < tolerance.velocity) {
+      return null;
+    }
+
+    return ScrollSpringSimulation(
+      spring,
+      position.pixels,
+      target,
+      velocity,
+      tolerance: tolerance,
+    );
+  }
+
+  @override
+  bool get allowImplicitScrolling => false;
 }
 
 // ─── Chip Bar ────────────────────────────────────────────────────────────────
@@ -415,32 +552,42 @@ class _BracketBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final unit = theme.columnWidth + theme.columnGap;
-    final activeColumnFractional = scrollOffset / unit;
+    final activeColumnFractional = unit > 0 ? scrollOffset / unit : 0.0;
 
-    // Calculate card center Ys per round
+    // Calculate card center Ys per round sequentially.
+    // Each round's bracket-aligned position is based on the ACTUAL displayed
+    // positions of its parent round (which may already be compact).
     final cardCenterYs = <int, List<double>>{};
     for (int i = 0; i < rounds.length; i++) {
       final matchCount = rounds[i].matches.length;
-      if (i == 0) {
-        cardCenterYs[i] = _compactCenterYs(matchCount);
-      } else {
-        final parentCenters = cardCenterYs[i - 1] ?? [];
-        final bracketCenters = _bracketCenterYs(matchCount, parentCenters);
-        final compactCenters = _compactCenterYs(matchCount);
+      final compactCenters = _compactCenterYs(matchCount);
 
-        double snapFactor;
+      if (i == 0) {
+        // First round is always compact (no parent to align to)
+        cardCenterYs[i] = compactCenters;
+      } else {
+        // Bracket-aligned = midpoints of parent's ACTUAL displayed positions
+        final parentCenters = cardCenterYs[i - 1]!;
+        final bracketCenters = _bracketCenterYs(matchCount, parentCenters);
+
+        double t; // 0 = compact, 1 = bracket-aligned
         if (i <= snappedIndex) {
-          snapFactor = 1.0;
+          // Already snapped/focused — compact layout for readability
+          t = 0.0;
         } else {
-          final dist = (activeColumnFractional - i).abs();
-          snapFactor = (1.0 - dist).clamp(0.0, 1.0);
+          // Not yet scrolled to — starts bracket-aligned (matching parent connectors),
+          // then transitions to compact as user scrolls toward this column.
+          // At activeColumnFractional = i-1: t = 1 (bracket-aligned, preview)
+          // At activeColumnFractional = i:   t = 0 (compact, focused)
+          t = 1.0 - (activeColumnFractional - (i - 1)).clamp(0.0, 1.0);
         }
 
         cardCenterYs[i] = List.generate(matchCount, (j) {
           final bracket =
               j < bracketCenters.length ? bracketCenters[j] : compactCenters[j];
           final compact = compactCenters[j];
-          return bracket + (compact - bracket) * snapFactor;
+          // t=0 → compact, t=1 → bracket-aligned
+          return compact + (bracket - compact) * t;
         });
       }
     }
@@ -500,7 +647,10 @@ class _BracketBody extends StatelessWidget {
             ),
             if (i < rounds.length - 1) SizedBox(width: theme.columnGap),
           ],
-          const SizedBox(width: 100),
+          // Trailing space — large enough that the last round can be scrolled
+          // to its proper snap position (with previousRoundPeek respected).
+          // Use viewportWidth as a reasonable upper bound.
+          SizedBox(width: (viewportWidth ?? 0) > 0 ? viewportWidth! : 200),
         ],
       ),
     );
@@ -593,6 +743,7 @@ class _BracketBody extends StatelessWidget {
                     : _DefaultMatchCard(
                       match: matches[i],
                       teamImageBuilder: teamImageBuilder,
+                      bracketTheme: theme,
                     ),
           ),
         ),
@@ -642,8 +793,13 @@ class _BracketBody extends StatelessWidget {
 // ─── Default Match Card ──────────────────────────────────────────────────────
 
 class _DefaultMatchCard extends StatelessWidget {
-  const _DefaultMatchCard({required this.match, this.teamImageBuilder});
+  const _DefaultMatchCard({
+    required this.match,
+    required this.bracketTheme,
+    this.teamImageBuilder,
+  });
   final BracketMatch match;
+  final BracketTheme bracketTheme;
   final Widget Function(BuildContext, String?, double)? teamImageBuilder;
 
   @override
@@ -686,6 +842,7 @@ class _DefaultMatchCard extends StatelessWidget {
             isLoser: match.isFinished && match.teamBWon,
             isLive: match.isLive,
             teamImageBuilder: teamImageBuilder,
+            bracketTheme: bracketTheme,
           ),
           const SizedBox(height: 3),
           _TeamRow(
@@ -694,6 +851,7 @@ class _DefaultMatchCard extends StatelessWidget {
             isLoser: match.isFinished && match.teamAWon,
             isLive: match.isLive,
             teamImageBuilder: teamImageBuilder,
+            bracketTheme: bracketTheme,
           ),
         ],
       ),
@@ -704,12 +862,14 @@ class _DefaultMatchCard extends StatelessWidget {
 class _TeamRow extends StatelessWidget {
   const _TeamRow({
     required this.team,
+    required this.bracketTheme,
     this.score,
     this.isLoser = false,
     this.isLive = false,
     this.teamImageBuilder,
   });
   final BracketTeam team;
+  final BracketTheme bracketTheme;
   final int? score;
   final bool isLoser;
   final bool isLive;
@@ -722,36 +882,59 @@ class _TeamRow extends StatelessWidget {
     final textColor =
         isLoser ? colorScheme.onSurfaceVariant : colorScheme.onSurface;
 
+    final logoTheme = bracketTheme.teamLogoTheme;
+    final logoBg =
+        logoTheme.backgroundColor ?? colorScheme.surfaceContainerHighest;
+    final iconColor =
+        logoTheme.fallbackIconColor ?? colorScheme.onSurfaceVariant;
+    final logoSize = logoTheme.size;
+    final iconSize = logoSize * 0.6;
+
+    Widget buildLogo() {
+      if (teamImageBuilder != null) {
+        return teamImageBuilder!(context, team.imageUrl, logoSize);
+      }
+      final inner =
+          team.imageUrl != null
+              ? Image.network(
+                team.imageUrl!,
+                width: logoSize,
+                height: logoSize,
+                fit: BoxFit.cover,
+                errorBuilder:
+                    (_, __, ___) => Icon(
+                      logoTheme.fallbackIcon,
+                      size: iconSize,
+                      color: iconColor,
+                    ),
+              )
+              : Icon(logoTheme.fallbackIcon, size: iconSize, color: iconColor);
+
+      return Container(
+        width: logoSize,
+        height: logoSize,
+        padding: logoTheme.padding,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: logoBg,
+          shape:
+              logoTheme.borderRadius == null
+                  ? BoxShape.circle
+                  : BoxShape.rectangle,
+          borderRadius: logoTheme.borderRadius,
+          border: logoTheme.border,
+        ),
+        child: ClipRRect(
+          borderRadius:
+              logoTheme.borderRadius ?? BorderRadius.circular(logoSize),
+          child: inner,
+        ),
+      );
+    }
+
     return Row(
       children: [
-        if (teamImageBuilder != null)
-          teamImageBuilder!(context, team.imageUrl, 16)
-        else
-          CircleAvatar(
-            radius: 10,
-            backgroundColor: colorScheme.surfaceContainerHighest,
-            child:
-                team.imageUrl != null
-                    ? ClipOval(
-                      child: Image.network(
-                        team.imageUrl!,
-                        width: 20,
-                        height: 20,
-                        fit: BoxFit.cover,
-                        errorBuilder:
-                            (_, __, ___) => Icon(
-                              Icons.sports_soccer,
-                              size: 12,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                      ),
-                    )
-                    : Icon(
-                      Icons.sports_soccer,
-                      size: 12,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-          ),
+        buildLogo(),
         const SizedBox(width: 6),
         Expanded(
           child: Text(

@@ -32,6 +32,7 @@ class BracketExamplePage extends StatelessWidget {
       body: BracketView(
         rounds: _sampleRounds,
         initialRoundIndex: 0,
+        theme: const BracketTheme(previousRoundPeek: 12),
         onRoundChanged: (index) {
           debugPrint('Round changed: $index');
         },
