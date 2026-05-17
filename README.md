@@ -157,13 +157,6 @@ cd example
 flutter run -d chrome
 ```
 
-## Adding Screenshots
-
-Place your screenshots in a `screenshots/` folder:
-- `screenshots/mobile.png` — Mobile view with scroll animation
-- `screenshots/desktop.png` — Desktop full bracket view
-- `screenshots/demo.gif` — Screen recording of scroll animation
-
 ## License
 
 MIT
