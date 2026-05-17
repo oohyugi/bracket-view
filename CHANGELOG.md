@@ -1,3 +1,8 @@
+## 0.3.1
+
+- Fix vertical scroll jank when flinging fast — body now rebuilds via `AnimatedBuilder` listening to the horizontal scroll controller, so the vertical scroll widget tree stays stable
+- Replace card `GestureDetector` with `InkWell` for gesture-cooperative tap handling and ripple effect
+
 ## 0.3.0
 
 - Add `previousRoundPeek` to `BracketTheme` — controls how much of the previous round peeks from the left edge when snapped (default 32.0)

@@ -81,14 +81,13 @@ class _BracketViewState extends State<BracketView> {
 
   double _viewportWidth = 0;
 
-  /// Handles scroll offset changes. Tracks current scroll position and
-  /// updates snappedIndex when scrolling backward (so previous rounds
-  /// transition back to bracket-aligned preview).
+  /// Updates snappedIndex on backward scroll. Does NOT call setState
+  /// because the body rebuilds via AnimatedBuilder listening to the
+  /// scroll controller. State updates that need a rebuild of the chip
+  /// bar happen in _onScrollEnd via setState.
   void _onScrollUpdate() {
     final newOffset = _hScrollController.offset;
     if (newOffset < _scrollOffset) {
-      // Scrolling backward — find the closest snap target and possibly
-      // lower _snappedIndex so previous rounds re-expand.
       int currentIdx = 0;
       double minDist = double.infinity;
       for (int i = 0; i < widget.rounds.length; i++) {
@@ -100,12 +99,16 @@ class _BracketViewState extends State<BracketView> {
         }
       }
       if (currentIdx < _snappedIndex) {
-        _snappedIndex = currentIdx;
+        // Only rebuild when snappedIndex actually changes.
+        setState(() {
+          _snappedIndex = currentIdx;
+          _scrollOffset = newOffset;
+        });
+        return;
       }
     }
-    setState(() {
-      _scrollOffset = newOffset;
-    });
+    // No state change needed; AnimatedBuilder handles the body refresh.
+    _scrollOffset = newOffset;
   }
 
   /// Calculates the snap scroll offset for a given round index.
@@ -266,13 +269,16 @@ class _BracketViewState extends State<BracketView> {
       behavior: const _WebDragScrollBehavior(),
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
-          // After natural physics settles, sync our active/snapped index.
           if (notification is ScrollEndNotification &&
               notification.metrics.axis == Axis.horizontal) {
             _onScrollEnd();
           }
           return false;
         },
+        // Vertical scroll is the outer scrollable. Horizontal snap-scroll
+        // is inside. AnimatedBuilder rebuilds only the inner body when the
+        // horizontal controller updates, so vertical scroll structure stays
+        // stable and free of jank.
         child: SingleChildScrollView(
           scrollDirection: Axis.vertical,
           child: SingleChildScrollView(
@@ -280,16 +286,25 @@ class _BracketViewState extends State<BracketView> {
             scrollDirection: Axis.horizontal,
             physics: _BracketSnapPhysics(snapTargets: snapTargets),
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _BracketBody(
-              rounds: widget.rounds,
-              scrollOffset: _scrollOffset,
-              snappedIndex: _snappedIndex,
-              theme: widget.theme,
-              onMatchTap: widget.onMatchTap,
-              matchCardBuilder: widget.matchCardBuilder,
-              teamImageBuilder: widget.teamImageBuilder,
-              showColumnHeaders: false,
-              viewportWidth: _viewportWidth,
+            child: AnimatedBuilder(
+              animation: _hScrollController,
+              builder: (context, _) {
+                final offset =
+                    _hScrollController.hasClients
+                        ? _hScrollController.offset
+                        : 0.0;
+                return _BracketBody(
+                  rounds: widget.rounds,
+                  scrollOffset: offset,
+                  snappedIndex: _snappedIndex,
+                  theme: widget.theme,
+                  onMatchTap: widget.onMatchTap,
+                  matchCardBuilder: widget.matchCardBuilder,
+                  teamImageBuilder: widget.teamImageBuilder,
+                  showColumnHeaders: false,
+                  viewportWidth: _viewportWidth,
+                );
+              },
             ),
           ),
         ),
@@ -735,16 +750,20 @@ class _BracketBody extends StatelessWidget {
           top: topY + headerOffset,
           left: 0,
           right: 0,
-          child: GestureDetector(
-            onTap: onMatchTap != null ? () => onMatchTap!(matches[i]) : null,
-            child:
-                matchCardBuilder != null
-                    ? matchCardBuilder!(context, matches[i])
-                    : _DefaultMatchCard(
-                      match: matches[i],
-                      teamImageBuilder: teamImageBuilder,
-                      bracketTheme: theme,
-                    ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onMatchTap != null ? () => onMatchTap!(matches[i]) : null,
+              borderRadius: BorderRadius.circular(12),
+              child:
+                  matchCardBuilder != null
+                      ? matchCardBuilder!(context, matches[i])
+                      : _DefaultMatchCard(
+                        match: matches[i],
+                        teamImageBuilder: teamImageBuilder,
+                        bracketTheme: theme,
+                      ),
+            ),
           ),
         ),
       );
