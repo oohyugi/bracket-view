@@ -12,6 +12,9 @@ class BracketTheme {
     this.cardDecoration,
     this.chipSelectedColor,
     this.chipUnselectedColor,
+    this.chipHeight = 32.0,
+    this.chipPadding = const EdgeInsets.symmetric(horizontal: 10),
+    this.chipTextStyle,
     this.snapDuration = const Duration(milliseconds: 250),
     this.snapCurve = Curves.easeOutCubic,
   });
@@ -42,6 +45,15 @@ class BracketTheme {
 
   /// Chip unselected color. Defaults to theme's surfaceContainerHighest.
   final Color? chipUnselectedColor;
+
+  /// Height of the chip bar row.
+  final double chipHeight;
+
+  /// Padding inside each chip.
+  final EdgeInsets chipPadding;
+
+  /// Text style for chip labels. Defaults to bodySmall with fontSize 11.
+  final TextStyle? chipTextStyle;
 
   /// Duration of snap animation.
   final Duration snapDuration;

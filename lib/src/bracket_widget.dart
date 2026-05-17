@@ -309,7 +309,7 @@ class _ChipBarState extends State<_ChipBar> {
 
   void _scrollToActive() {
     if (!_controller.hasClients) return;
-    const chipUnit = 90.0;
+    const chipUnit = 80.0;
     final viewportWidth = _controller.position.viewportDimension;
     final target = (widget.activeIndex * chipUnit -
             viewportWidth / 2 +
@@ -331,9 +331,10 @@ class _ChipBarState extends State<_ChipBar> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final chipTheme = widget.theme;
 
     return SizedBox(
-      height: 38,
+      height: chipTheme.chipHeight,
       child: ListView.separated(
         controller: _controller,
         scrollDirection: Axis.horizontal,
@@ -344,16 +345,20 @@ class _ChipBarState extends State<_ChipBar> {
           final round = widget.rounds[index];
           final isSelected = index == widget.activeIndex;
           final selectedColor =
-              widget.theme.chipSelectedColor ?? colorScheme.primary;
+              chipTheme.chipSelectedColor ?? colorScheme.primary;
           final unselectedColor =
-              widget.theme.chipUnselectedColor ??
+              chipTheme.chipUnselectedColor ??
               colorScheme.surfaceContainerHighest;
+
+          final baseTextStyle =
+              chipTheme.chipTextStyle ??
+              Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11);
 
           return GestureDetector(
             onTap: () => widget.onSelected(index),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              padding: chipTheme.chipPadding,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: isSelected ? selectedColor : unselectedColor,
@@ -367,7 +372,7 @@ class _ChipBarState extends State<_ChipBar> {
               ),
               child: Text(
                 round.name,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                style: baseTextStyle?.copyWith(
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                   color:
                       isSelected
