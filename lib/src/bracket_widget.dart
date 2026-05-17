@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -6,11 +8,13 @@ import 'package:bracket_view/src/models/bracket_match.dart';
 import 'package:bracket_view/src/models/bracket_round.dart';
 import 'package:bracket_view/src/models/bracket_team.dart';
 
-/// A tournament bracket widget that displays rounds in a horizontal scroll
-/// with scroll-driven card position animations.
+/// A responsive tournament bracket widget.
 ///
-/// Cards animate between bracket-aligned positions (centered between parent
-/// pairs) and compact positions (stacked from top) as the user scrolls.
+/// On small screens: horizontal scroll with snap-to-round behavior and
+/// scroll-driven card position animations (bracket-aligned ↔ compact).
+///
+/// On large screens: displays all rounds at once as a static bracket tree
+/// with round name headers above each column.
 class BracketView extends StatefulWidget {
   const BracketView({
     super.key,
@@ -77,6 +81,9 @@ class _BracketViewState extends State<BracketView> {
     super.dispose();
   }
 
+  double _viewportWidth = 0;
+
+  /// Handles scroll offset changes. Unfreezes columns when scrolling left.
   void _onScrollUpdate() {
     final newOffset = _hScrollController.offset;
     if (newOffset < _scrollOffset) {
@@ -94,6 +101,7 @@ class _BracketViewState extends State<BracketView> {
     });
   }
 
+  /// Scrolls the horizontal view to the given round index.
   void _scrollToIndex(int index, {required bool animated}) {
     if (!_hScrollController.hasClients) return;
     final unit = widget.theme.columnWidth + widget.theme.columnGap;
@@ -112,6 +120,7 @@ class _BracketViewState extends State<BracketView> {
     }
   }
 
+  /// Snaps to the nearest round column when user releases scroll.
   void _onScrollEnd() {
     if (!_hScrollController.hasClients || _isSnapping) return;
     final unit = widget.theme.columnWidth + widget.theme.columnGap;
@@ -142,6 +151,7 @@ class _BracketViewState extends State<BracketView> {
     }
   }
 
+  /// Programmatically selects a round (from chip tap).
   void _selectRound(int index) {
     setState(() {
       _activeIndex = index;
@@ -157,54 +167,115 @@ class _BracketViewState extends State<BracketView> {
       return const Center(child: Text('No bracket data'));
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 8),
-        _ChipBar(
-          rounds: widget.rounds,
-          activeIndex: _activeIndex,
-          onSelected: _selectRound,
-          theme: widget.theme,
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              if (notification is ScrollEndNotification &&
-                  notification.metrics.axis == Axis.horizontal) {
-                _onScrollEnd();
-              }
-              if (notification is UserScrollNotification &&
-                  notification.direction == ScrollDirection.idle &&
-                  notification.metrics.axis == Axis.horizontal) {
-                _onScrollEnd();
-              }
-              return false;
-            },
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: SingleChildScrollView(
-                controller: _hScrollController,
-                scrollDirection: Axis.horizontal,
-                physics: const ClampingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _BracketBody(
-                  rounds: widget.rounds,
-                  scrollOffset: _scrollOffset,
-                  snappedIndex: _snappedIndex,
-                  theme: widget.theme,
-                  onMatchTap: widget.onMatchTap,
-                  matchCardBuilder: widget.matchCardBuilder,
-                  teamImageBuilder: widget.teamImageBuilder,
-                ),
+    return LayoutBuilder(
+      builder: (context, outerConstraints) {
+        final viewportWidth = outerConstraints.maxWidth;
+        _viewportWidth = viewportWidth;
+        final totalBracketWidth =
+            widget.rounds.length * widget.theme.columnWidth +
+            (widget.rounds.length - 1) * widget.theme.columnGap +
+            32;
+        final isLargeScreen = outerConstraints.maxWidth >= totalBracketWidth;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 8),
+            if (!isLargeScreen) ...[
+              _ChipBar(
+                rounds: widget.rounds,
+                activeIndex: _activeIndex,
+                onSelected: _selectRound,
+                theme: widget.theme,
               ),
+              const SizedBox(height: 8),
+            ],
+            Expanded(
+              child:
+                  isLargeScreen
+                      ? _buildLargeScreenBracket()
+                      : _buildSmallScreenBracket(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Builds the static full-bracket layout for large screens (no scroll animation).
+  Widget _buildLargeScreenBracket() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.vertical,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: _BracketBody(
+          rounds: widget.rounds,
+          scrollOffset: 0,
+          snappedIndex: 0,
+          theme: widget.theme,
+          onMatchTap: widget.onMatchTap,
+          matchCardBuilder: widget.matchCardBuilder,
+          teamImageBuilder: widget.teamImageBuilder,
+          showColumnHeaders: true,
+          viewportWidth: _viewportWidth,
+        ),
+      ),
+    );
+  }
+
+  /// Builds the scrollable bracket with snap and animation for small screens.
+  Widget _buildSmallScreenBracket() {
+    return ScrollConfiguration(
+      behavior: const _WebDragScrollBehavior(),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification is ScrollEndNotification &&
+              notification.metrics.axis == Axis.horizontal) {
+            _onScrollEnd();
+          }
+          if (notification is UserScrollNotification &&
+              notification.direction == ScrollDirection.idle &&
+              notification.metrics.axis == Axis.horizontal) {
+            _onScrollEnd();
+          }
+          return false;
+        },
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          child: SingleChildScrollView(
+            controller: _hScrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _BracketBody(
+              rounds: widget.rounds,
+              scrollOffset: _scrollOffset,
+              snappedIndex: _snappedIndex,
+              theme: widget.theme,
+              onMatchTap: widget.onMatchTap,
+              matchCardBuilder: widget.matchCardBuilder,
+              teamImageBuilder: widget.teamImageBuilder,
+              showColumnHeaders: false,
+              viewportWidth: _viewportWidth,
             ),
           ),
         ),
-      ],
+      ),
     );
   }
+}
+
+/// Enables drag-to-scroll on all platforms (needed for web).
+class _WebDragScrollBehavior extends MaterialScrollBehavior {
+  const _WebDragScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+  };
 }
 
 // ─── Chip Bar ────────────────────────────────────────────────────────────────
@@ -323,6 +394,8 @@ class _BracketBody extends StatelessWidget {
     this.onMatchTap,
     this.matchCardBuilder,
     this.teamImageBuilder,
+    this.showColumnHeaders = false,
+    this.viewportWidth,
   });
   final List<BracketRound> rounds;
   final double scrollOffset;
@@ -331,6 +404,8 @@ class _BracketBody extends StatelessWidget {
   final ValueChanged<BracketMatch>? onMatchTap;
   final Widget Function(BuildContext, BracketMatch)? matchCardBuilder;
   final Widget Function(BuildContext, String?, double)? teamImageBuilder;
+  final bool showColumnHeaders;
+  final double? viewportWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -373,28 +448,49 @@ class _BracketBody extends StatelessWidget {
         if (lastBottom > maxHeight) maxHeight = lastBottom;
       }
     }
-    maxHeight += 40;
+    maxHeight += 200; // extra space for last cards + bottom padding
 
     final lineColor =
         theme.connectorColor ?? Theme.of(context).colorScheme.outlineVariant;
 
+    final headerHeight = showColumnHeaders ? 40.0 : 0.0;
+
     return SizedBox(
-      height: maxHeight,
+      height: maxHeight + headerHeight,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (int i = 0; i < rounds.length; i++) ...[
             SizedBox(
               width: theme.columnWidth,
-              height: maxHeight,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: _buildCards(
-                  context,
-                  i,
-                  cardCenterYs[i] ?? [],
-                  lineColor,
-                ),
+              height: maxHeight + headerHeight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (showColumnHeaders)
+                    SizedBox(
+                      height: headerHeight,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          rounds[i].name,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  Expanded(
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: _buildCards(
+                        context,
+                        i,
+                        cardCenterYs[i] ?? [],
+                        lineColor,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             if (i < rounds.length - 1) SizedBox(width: theme.columnGap),
@@ -405,11 +501,13 @@ class _BracketBody extends StatelessWidget {
     );
   }
 
+  /// Returns compact Y center positions (evenly spaced from top).
   List<double> _compactCenterYs(int count) {
     final unit = theme.cardHeight + theme.compactGap;
     return List.generate(count, (i) => i * unit + theme.cardHeight / 2);
   }
 
+  /// Returns bracket-aligned Y centers (each card centered between 2 parent cards).
   List<double> _bracketCenterYs(int count, List<double> parentCenters) {
     if (parentCenters.isEmpty) return _compactCenterYs(count);
     return List.generate(count, (i) {
@@ -425,6 +523,7 @@ class _BracketBody extends StatelessWidget {
     });
   }
 
+  /// Builds positioned card widgets + connector lines for a single round column.
   List<Widget> _buildCards(
     BuildContext context,
     int roundIdx,

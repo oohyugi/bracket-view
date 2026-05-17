@@ -42,8 +42,15 @@ class BracketMatch {
   /// Optional label shown above the match card (e.g. "Aggregate", "Match").
   final String? label;
 
+  /// Whether the match has finished.
   bool get isFinished => status == BracketMatchStatus.finished;
+
+  /// Whether the match is currently live.
   bool get isLive => status == BracketMatchStatus.live;
+
+  /// Whether team A won the match.
   bool get teamAWon => winnerSide == 'A';
+
+  /// Whether team B won the match.
   bool get teamBWon => winnerSide == 'B';
 }
