@@ -143,9 +143,21 @@ class _BracketViewState extends State<BracketView> {
     if (!_hScrollController.hasClients) return;
     final target = _snapOffsetForIndex(index);
     if (animated) {
+      // Scale duration by distance so multi-round jumps (chip tap) feel snappy
+      // instead of crawling at the same fixed duration.
+      final distance = (_hScrollController.offset - target).abs();
+      final unit = widget.theme.columnWidth + widget.theme.columnGap;
+      final roundsToTravel = (distance / unit).clamp(1.0, double.infinity);
+      final baseDuration = widget.theme.snapDuration.inMilliseconds;
+      // Cap at 2x base duration even for large jumps.
+      final ms =
+          (baseDuration * (1 + (roundsToTravel - 1) * 0.3))
+              .clamp(baseDuration, baseDuration * 2)
+              .toInt();
+
       _hScrollController.animateTo(
         target,
-        duration: widget.theme.snapDuration,
+        duration: Duration(milliseconds: ms),
         curve: widget.theme.snapCurve,
       );
     } else {
@@ -284,7 +296,10 @@ class _BracketViewState extends State<BracketView> {
           child: SingleChildScrollView(
             controller: _hScrollController,
             scrollDirection: Axis.horizontal,
-            physics: _BracketSnapPhysics(snapTargets: snapTargets),
+            physics: _BracketSnapPhysics(
+              snapTargets: snapTargets,
+              parent: const ClampingScrollPhysics(),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: AnimatedBuilder(
               animation: _hScrollController,
@@ -425,6 +440,10 @@ class _BracketSnapPhysics extends ScrollPhysics {
       tolerance: tolerance,
     );
   }
+
+  @override
+  SpringDescription get spring =>
+      const SpringDescription(mass: 0.5, stiffness: 200, damping: 22);
 
   @override
   bool get allowImplicitScrolling => false;
