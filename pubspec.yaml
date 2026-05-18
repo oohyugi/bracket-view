@@ -1,6 +1,6 @@
 name: bracket_view
 description: A reusable tournament bracket widget with scroll-driven animations and responsive layout.
-version: 0.2.1
+version: 1.0.0
 repository: https://github.com/oohyugi/bracket-view
 issue_tracker: https://github.com/oohyugi/bracket-view/issues
 topics:

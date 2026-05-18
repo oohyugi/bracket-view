@@ -1,3 +1,20 @@
+## 1.0.0
+
+First stable release.
+
+### Highlights
+
+- **BREAKING (from 0.1.0):** `BracketMatch.winnerSide` is now `BracketWinnerSide?` enum (`teamA`/`teamB`) instead of `String?`
+- `BracketMatchLeg` model and `BracketMatch.legs` for optional per-leg metadata (label, score, date, venue)
+- `BracketMatch.hasMultipleLegs` convenience getter
+- `BracketTheme.previousRoundPeek`, `teamLogoTheme`, `chipHeight`, `chipPadding`, `chipTextStyle`
+- Custom snap physics with stiffer spring for responsive chip-tap navigation
+- Force `ClampingScrollPhysics` parent — fixes slow snap animation on iOS
+- Instant `jumpTo` on chip tap for zero-lag round switching
+- Demo GIF added to README
+- Unit + widget test suite (17 cases)
+- Example app: switchable UCL (two-leg with leg picker bottom sheet) vs World Cup 2022 (single-leg with AET/penalties)
+
 ## 0.2.1
 
 - README: restore Screenshots section (images exist), remove Demo placeholder (gif not yet available)

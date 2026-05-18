@@ -143,23 +143,12 @@ class _BracketViewState extends State<BracketView> {
     if (!_hScrollController.hasClients) return;
     final target = _snapOffsetForIndex(index);
     if (animated) {
-      // Scale duration by distance so multi-round jumps (chip tap) feel snappy
-      // instead of crawling at the same fixed duration.
-      final distance = (_hScrollController.offset - target).abs();
-      final unit = widget.theme.columnWidth + widget.theme.columnGap;
-      final roundsToTravel = (distance / unit).clamp(1.0, double.infinity);
-      final baseDuration = widget.theme.snapDuration.inMilliseconds;
-      // Cap at 2x base duration even for large jumps.
-      final ms =
-          (baseDuration * (1 + (roundsToTravel - 1) * 0.3))
-              .clamp(baseDuration, baseDuration * 2)
-              .toInt();
-
-      _hScrollController.animateTo(
-        target,
-        duration: Duration(milliseconds: ms),
-        curve: widget.theme.snapCurve,
-      );
+      // Use jumpTo for programmatic navigation (chip tap). This avoids the
+      // snap physics spring simulation fighting with animateTo, which caused
+      // sluggish scrolling on iOS where BouncingScrollPhysics adds extra
+      // damping. The visual result is an instant snap — which is what users
+      // expect from tapping a chip.
+      _hScrollController.jumpTo(target);
     } else {
       _hScrollController.jumpTo(target);
     }
