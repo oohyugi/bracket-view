@@ -54,7 +54,7 @@ BracketView(
           scoreA: 4,
           scoreB: 0,
           status: BracketMatchStatus.finished,
-          winnerSide: 'A',
+          winnerSide: BracketWinnerSide.teamA,
           label: 'Aggregate',
         ),
         // ...more matches

@@ -1,3 +1,11 @@
+## 0.4.0
+
+- **BREAKING:** `BracketMatch.winnerSide` is now `BracketWinnerSide?` (enum with `teamA`/`teamB`) instead of `String?`. Replace `'A'`/`'B'` with `BracketWinnerSide.teamA`/`.teamB`.
+- Loser strikethrough now works for level scores (e.g. 1-1 decided on penalties) — set `winnerSide` explicitly and the loser is struck through regardless of score
+- Documentation: `scoreA`/`scoreB` doc clarified to cover both single-leg full-time scores and two-leg aggregates
+- Example app: switchable datasets (UCL two-leg aggregate vs World Cup 2022 single-leg with AET/penalties)
+- Layout: more breathing room between chip bar, round date label, and the first match card
+
 ## 0.3.1
 
 - Fix vertical scroll jank when flinging fast — body now rebuilds via `AnimatedBuilder` listening to the horizontal scroll controller, so the vertical scroll widget tree stays stable

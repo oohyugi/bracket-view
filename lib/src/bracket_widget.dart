@@ -222,7 +222,7 @@ class _BracketViewState extends State<BracketView> {
                 onSelected: _selectRound,
                 theme: widget.theme,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
             ],
             Expanded(
               child:
@@ -703,13 +703,13 @@ class _BracketBody extends StatelessWidget {
     final round = rounds[roundIdx];
     final matches = round.matches;
     final widgets = <Widget>[];
-    const headerOffset = 20.0;
+    const headerOffset = 36.0;
 
     // Date label
     if (round.dateLabel != null && round.dateLabel!.isNotEmpty) {
       widgets.add(
         Positioned(
-          top: 0,
+          top: 4,
           left: 0,
           right: 0,
           child: Text(
