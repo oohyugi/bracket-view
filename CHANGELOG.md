@@ -1,3 +1,8 @@
+## 0.2.1
+
+- README: restore Screenshots section (images exist), remove Demo placeholder (gif not yet available)
+- No code changes
+
 ## 0.2.0
 
 This release consolidates several internal iterations into the next pub.dev

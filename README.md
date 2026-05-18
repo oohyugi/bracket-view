@@ -26,9 +26,7 @@ A reusable Flutter tournament bracket widget with scroll-driven animations and r
 
 ```yaml
 dependencies:
-  bracket_view:
-    git:
-      url: https://github.com/oohyugi/bracket-view.git
+  bracket_view: ^0.2.0
 ```
 
 ## Usage
@@ -50,7 +48,7 @@ BracketView(
           scoreA: 4,
           scoreB: 0,
           status: BracketMatchStatus.finished,
-          winnerSide: 'A',
+          winnerSide: BracketWinnerSide.teamA,
           label: 'Aggregate',
         ),
         // ...more matches
@@ -83,8 +81,15 @@ BracketTheme(
   connectorWidth: 1.5,
   chipSelectedColor: Colors.blue,
   chipUnselectedColor: Colors.grey[800],
+  chipHeight: 32.0,
+  chipPadding: EdgeInsets.symmetric(horizontal: 10),
   snapDuration: Duration(milliseconds: 250),
   snapCurve: Curves.easeOutCubic,
+  previousRoundPeek: 32.0,  // How much of the previous round peeks from the left
+  teamLogoTheme: TeamLogoTheme(
+    size: 20.0,
+    fallbackIcon: Icons.sports_soccer,
+  ),
 )
 ```
 
@@ -142,9 +147,13 @@ BracketView(
 | Model | Description |
 |---|---|
 | `BracketRound` | A round with name, matches, and optional date label |
-| `BracketMatch` | A match with two teams, scores, status, and winner |
+| `BracketMatch` | A match with two teams, scores, status, winner, and optional legs |
+| `BracketMatchLeg` | One leg of a two-leg tie (label, score, date, venue) |
 | `BracketTeam` | A team with name and optional image URL |
+| `BracketWinnerSide` | Enum: `teamA` or `teamB` |
+| `BracketMatchStatus` | Enum: `upcoming`, `live`, `finished` |
 | `BracketTheme` | Visual configuration for the bracket |
+| `TeamLogoTheme` | Logo/avatar styling within the default match card |
 
 ## Running the Example
 
