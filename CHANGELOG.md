@@ -2,9 +2,11 @@
 
 - **BREAKING:** `BracketMatch.winnerSide` is now `BracketWinnerSide?` (enum with `teamA`/`teamB`) instead of `String?`. Replace `'A'`/`'B'` with `BracketWinnerSide.teamA`/`.teamB`.
 - Loser strikethrough now works for level scores (e.g. 1-1 decided on penalties) — set `winnerSide` explicitly and the loser is struck through regardless of score
+- Add `BracketMatchLeg` and `BracketMatch.legs` for optional per-leg metadata (label, score, date, venue) — useful for showing leg-pickers on tap in two-leg ties
 - Documentation: `scoreA`/`scoreB` doc clarified to cover both single-leg full-time scores and two-leg aggregates
-- Example app: switchable datasets (UCL two-leg aggregate vs World Cup 2022 single-leg with AET/penalties)
+- Example app: switchable datasets (UCL two-leg with leg picker bottom sheet vs World Cup 2022 single-leg with AET/penalties)
 - Layout: more breathing room between chip bar, round date label, and the first match card
+- Tests: add unit + widget test suite (`test/`)
 
 ## 0.3.1
 
