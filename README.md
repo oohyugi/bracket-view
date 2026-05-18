@@ -4,6 +4,12 @@ A reusable Flutter tournament bracket widget with scroll-driven animations and r
 
 [![pub package](https://img.shields.io/pub/v/bracket_view.svg)](https://pub.dev/packages/bracket_view)
 
+## Screenshots
+
+| Mobile (Scroll + Snap) | Desktop (Full Bracket) |
+|---|---|
+| ![Mobile](screenshots/mobile.png) | ![Desktop](screenshots/desktop.png) |
+
 ## Features
 
 - 🏆 Horizontal scroll bracket with snap-to-round behavior
@@ -44,7 +50,7 @@ BracketView(
           scoreA: 4,
           scoreB: 0,
           status: BracketMatchStatus.finished,
-          winnerSide: BracketWinnerSide.teamA,
+          winnerSide: 'A',
           label: 'Aggregate',
         ),
         // ...more matches
