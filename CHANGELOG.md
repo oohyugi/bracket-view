@@ -1,3 +1,11 @@
+## 0.4.1
+
+- Add `BracketMatchLeg` and `BracketMatch.legs` for optional per-leg metadata (label, score, date, venue) — useful for showing a leg picker on tap in two-leg ties
+- Add `BracketMatch.hasMultipleLegs` convenience getter
+- Fix dangling library doc comment (`library;` directive added to `lib/bracket_view.dart`) — clears the analyzer info on pub.dev
+- README: drop placeholder Screenshots/Demo section
+- Tests: add unit + widget test suite
+
 ## 0.4.0
 
 - **BREAKING:** `BracketMatch.winnerSide` is now `BracketWinnerSide?` (enum with `teamA`/`teamB`) instead of `String?`. Replace `'A'`/`'B'` with `BracketWinnerSide.teamA`/`.teamB`.

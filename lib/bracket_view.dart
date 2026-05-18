@@ -1,4 +1,5 @@
 /// A reusable tournament bracket widget with scroll-driven animations.
+library;
 
 export 'src/bracket_widget.dart';
 export 'src/models/bracket_match.dart';
